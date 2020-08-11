@@ -1,0 +1,134 @@
+- hosts: localhost
+  connection: local
+
+  vars:
+
+    maven_version: 3.6.3
+
+  tasks:
+      
+    -   name: Check the version of OS
+        command: hostnamectl
+        register: os_check
+        ignore_errors: yes  
+
+    -   name: Install Role Java
+        local_action: command ansible-galaxy install -f geerlingguy.java 
+
+    -   name: Check if Java is already installed
+        stat: path=/usr/sbin/jdk
+        register: jdk_exists
+
+    -   name: Applying role Java
+        command: mv ~/.ansible/roles/geerlingguy.java ~/.ansible/roles/pwslab.java
+        when: not jdk_exists.stat.exists
+        ignore_errors: yes
+
+    -   name: Installing Java
+        include_role:
+            name: pwslab.java
+        when: 
+            - os_check.stdout | regex_search("CentOS Linux 7")
+            - not os_check.stdout | regex_search("CentOS Linux 8")
+        vars:
+            java_packages:
+                - java-11-openjdk
+
+    -   name: Remove Old Java Any
+        yum:
+            name: java*
+            state: absent
+        when: 
+            - os_check.stdout | regex_search("CentOS Linux 8")
+
+    -   name: Install Java 11
+        yum:
+            name: java-11-openjdk-devel
+            state: latest
+        when: 
+            - os_check.stdout | regex_search("CentOS Linux 8")
+
+    -   name: Installing Java
+        include_role:
+            name: pwslab.java
+        when: 
+            - os_check.stdout | regex_search("Ubuntu")
+
+    -   name: Get the latest Maven Release
+        get_url: 
+            url: https://www-us.apache.org/dist/maven/maven-3/{{ maven_version }}/binaries/apache-maven-{{ maven_version }}-bin.tar.gz
+            dest: /tmp/
+        
+    -   name: Extract Maven into /tmp
+        unarchive:
+            src: /tmp/apache-maven-{{ maven_version }}-bin.tar.gz
+            dest: /opt
+
+    -   name: Enable Maven version
+        file:
+            src: "/opt/apache-maven-{{ maven_version }}"
+            dest: "/opt/maven"
+            state: link
+
+    -   name: Add Maven $PATH - Ubuntu 20
+        lineinfile:
+            path: /etc/profile.d/maven.sh
+            line: "{{ item }}"
+            mode: '0755'
+            create: yes
+        loop:
+            - export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+            - export M2_HOME=/opt/maven
+            - export MAVEN_HOME=/opt/maven
+            - export PATH=${M2_HOME}/bin:${PATH}
+        when: 
+            - os_check.stdout | regex_search("Ubuntu 20")
+
+    -   name: Add Maven $PATH - Ubuntu 18
+        lineinfile:
+            path: /etc/profile.d/maven.sh
+            line: "{{ item }}"
+            mode: '0755'
+            create: yes
+        loop:
+            - export JAVA_HOME=/usr/lib/jvm/java-1.11.0-openjdk-amd64
+            - export M2_HOME=/opt/maven
+            - export MAVEN_HOME=/opt/maven
+            - export PATH=${M2_HOME}/bin:${PATH}
+        when: 
+            - os_check.stdout | regex_search("Ubuntu 18")
+
+    -   name: Add Maven $PATH - CentOS 8
+        lineinfile:
+            path: /etc/profile.d/maven.sh
+            line: "{{ item }}"
+            mode: '0755'
+            create: yes
+        loop:
+            - export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+            - export M2_HOME=/opt/maven
+            - export MAVEN_HOME=/opt/maven
+            - export PATH=${M2_HOME}/bin:${PATH}
+        when: 
+            - os_check.stdout | regex_search("CentOS Linux 8")
+
+    -   name: Add Maven $PATH - CentOS 7
+        lineinfile:
+            path: /etc/profile.d/maven.sh
+            line: "{{ item }}"
+            mode: '0755'
+            create: yes
+        loop:
+            - export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-11.0.8.10-0.el7_8.x86_64
+            - export M2_HOME=/opt/maven
+            - export MAVEN_HOME=/opt/maven
+            - export PATH=${M2_HOME}/bin:${PATH}
+        when: 
+            - os_check.stdout | regex_search("CentOS Linux 7")
+
+
+    
+            
+    
+
+    
